@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>便利店經營分析看板 · 2026年9月</title>
+<style>
+:root{--bg:#0f1420;--card:#182236;--card2:#1e2b44;--line:#2b3a57;--txt:#e8eef7;--sub:#93a3bf;--ac:#4f9dff;--good:#37d39b;--warn:#ffb454;--bad:#ff6b6b;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:linear-gradient(160deg,#0b1019,#121a2b);color:var(--txt);font-family:"Segoe UI","Microsoft YaHei",sans-serif;padding:22px 26px 40px}
+header{border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px}
+h1{font-size:23px;font-weight:700;letter-spacing:.3px}
+.sub{color:var(--sub);font-size:13px;margin-top:5px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 20px}
+.controls select,.controls button{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer}
+.controls button:hover{border-color:var(--ac)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ac)}
+.kpi.g::before{background:var(--good)}.kpi.w::before{background:var(--warn)}.kpi.b::before{background:var(--bad)}
+.kpi .l{font-size:12px;color:var(--sub)}
+.kpi .v{font-size:26px;font-weight:700;margin:6px 0 2px}
+.kpi .d{font-size:12px;color:var(--sub)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px 10px}
+.panel h3{font-size:14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.panel h3 span{font-size:11px;color:var(--sub);font-weight:400}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:7px 8px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--sub);font-weight:600;position:sticky;top:0;background:var(--card)}
+tbody tr:hover{background:#21304d}
+.bar-row{display:flex;align-items:center;gap:9px;margin:7px 0;font-size:12.5px}
+.bar-row .nm{width:78px;flex:none;color:var(--sub);text-align:right}
+.bar-wrap{flex:1;background:#0f1a2c;border-radius:5px;height:20px;position:relative}
+.bar{height:100%;border-radius:5px;background:linear-gradient(90deg,#4f9dff,#37d39b);transition:width .5s}
+.bar-row .vl{width:66px;flex:none;text-align:right;font-variant-numeric:tabular-nums}
+.donut{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.legend{font-size:12px}
+.legend div{display:flex;align-items:center;gap:7px;margin:5px 0}
+.dot{width:11px;height:11px;border-radius:3px}
+.heat{display:grid;grid-template-columns:repeat(16,1fr);gap:5px}
+.heat .c{border-radius:6px;height:34px;display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:10px;color:#0b1019;font-weight:700}
+.heat .c small{font-weight:400;opacity:.8}
+.alert td{color:var(--bad)}
+.note{margin-top:22px;font-size:12px;color:var(--sub);background:var(--card);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;padding:14px 18px;line-height:1.7}
+.note b{color:var(--txt)}
+#hint{display:none;position:fixed;left:50%;top:24px;transform:translateX(-50%);background:var(--bad);color:#fff;padding:9px 18px;border-radius:20px;font-size:13px;z-index:9}
+</style>
+</head>
+<body>
+<header>
+<h1>便利店經營分析看板 · 4店模擬數據</h1>
+<div class="sub">數據期間 2026-09-01 ~ 09-30（30天）｜銷售 4,200 筆 · 商品 83 SKU · 費用 82 筆 · 盤點快照 09-28｜數值由星型模型實機計算</div>
+</header>
+
+<div class="controls">
+<select id="store"><option value="ALL">全部門店</option><option>S01 Bear店</option><option>S02 Catty店</option><option>S03 Rabbit店</option><option>S04 Shiba店</option></select>
+<select id="metric"><option value="rev">按營收排序</option><option value="gp">按毛利率排序</option><option value="qty">按銷量排序</option></select>
+<button onclick="resetAll()">重設篩選</button>
+<span id="selInfo" style="align-self:center;font-size:12px;color:var(--sub)"></span>
+</div>
+
+<div class="kpis" id="kpis"></div>
+<div class="grid">
+  <div class="panel"><h3>每日營收走勢 <span>點選柱體聯動下方</span></h3><div id="daily"></div></div>
+  <div class="panel"><h3>品類營收結構 <span>含毛利率色標</span></h3><div class="donut"><div id="catBars" style="flex:1;min-width:240px"></div><div id="catLegend" class="legend"></div></div></div>
+  <div class="panel" style="grid-column:1/-1"><h3>門店 × 核心指標 <span>營收 / 毛利 / 毛利率 / 客單價</span></h3><div id="storeBars"></div></div>
+  <div class="panel"><h3>時段熱力 <span>每小時 營收(元) / 筆數</span></h3><div class="heat" id="heat"></div></div>
+  <div class="panel"><h3>支付方式 vs 會員行為</h3><div id="pay"></div><div id="mem" style="margin-top:12px"></div></div>
+  <div class="panel"><h3>熱銷商品 TOP <span id="topN"></span></h3><div id="topTable"></div></div>
+  <div class="panel"><h3>低庫存預警 <span>庫存 &lt; 安全庫存</span></h3><div id="lowTable" style="max-height:340px;overflow:auto"></div></div>
+  <div class="panel"><h3>費用結構與營收減費用 <span>單位：元</span></h3><div id="expTable"></div></div>
+</div>
+
+<div class="note">
+<b>兩個必須先講的數據口徑（會直接影響結論）</b><br>
+① <b>「生產日期」實為到貨/上架日</b>：若按日曆生產日算，五花肉（保質5天、標6/1）、炸雞腿（保質1天、標6/17）早已過期。本看板生鮮風險統一改為「(09-28 盤點日 − 上架日) / 保質期」衡量；若業務方確認是真正生產日，則本批生鮮應全數報廢，請先核對。<br>
+② <b>費用日期跨 1/9–29/9、且為事件型記錄</b>（非每日都有）。「日均費用」一律用 費用合計 ÷ 30 天，而非 ÷ 有記錄天數；租金在 9/14、9/18、9/26 出現三筆大額（2.2萬／2.8萬／2.5萬），為單店月度租金，屬正常週期性支出。
+</div>
+<div id="hint"></div>
+
+<script>
+const EMB={"daily": [{"d": "2026-09-01", "w": "平日", "營收": 14529.0, "筆數": 147.0}, {"d": "2026-09-02", "w": "平日", "營收": 13146.0, "筆數": 135.0}, {"d": "2026-09-03", "w": "平日", "營收": 12696.0, "筆數": 136.0}, {"d": "2026-09-04", "w": "平日", "營收": 14241.0, "筆數": 155.0}, {"d": "2026-09-05", "w": "平日", "營收": 13748.0, "筆數": 144.0}, {"d": "2026-09-06", "w": "平日", "營收": 14925.0, "筆數": 149.0}, {"d": "2026-09-07", "w": "週末", "營收": 12382.0, "筆數": 128.0}, {"d": "2026-09-08", "w": "平日", "營收": 13779.0, "筆數": 150.0}, {"d": "2026-09-09", "w": "平日", "營收": 12928.0, "筆數": 130.0}, {"d": "2026-09-10", "w": "平日", "營收": 13954.0, "筆數": 141.0}, {"d": "2026-09-11", "w": "平日", "營收": 10961.0, "筆數": 128.0}, {"d": "2026-09-12", "w": "平日", "營收": 14393.0, "筆數": 149.0}, {"d": "2026-09-13", "w": "平日", "營收": 11584.0, "筆數": 127.0}, {"d": "2026-09-14", "w": "週末", "營收": 12282.0, "筆數": 128.0}, {"d": "2026-09-15", "w": "平日", "營收": 12078.0, "筆數": 132.0}, {"d": "2026-09-16", "w": "平日", "營收": 14294.0, "筆數": 154.0}, {"d": "2026-09-17", "w": "平日", "營收": 11516.0, "筆數": 125.0}, {"d": "2026-09-18", "w": "平日", "營收": 15802.0, "筆數": 163.0}, {"d": "2026-09-19", "w": "平日", "營收": 13401.0, "筆數": 144.0}, {"d": "2026-09-20", "w": "平日", "營收": 14481.0, "筆數": 136.0}, {"d": "2026-09-21", "w": "週末", "營收": 14055.0, "筆數": 144.0}, {"d": "2026-09-22", "w": "平日", "營收": 12909.0, "筆數": 142.0}, {"d": "2026-09-23", "w": "平日", "營收": 13918.0, "筆數": 135.0}, {"d": "2026-09-24", "w": "平日", "營收": 14813.0, "筆數": 143.0}, {"d": "2026-09-25", "w": "平日", "營收": 14083.0, "筆數": 140.0}, {"d": "2026-09-26", "w": "平日", "營收": 12142.0, "筆數": 130.0}, {"d": "2026-09-27", "w": "平日", "營收": 12715.0, "筆數": 132.0}, {"d": "2026-09-28", "w": "週末", "營收": 13236.0, "筆數": 142.0}, {"d": "2026-09-29", "w": "平日", "營收": 13913.0, "筆數": 144.0}, {"d": "2026-09-30", "w": "平日", "營收": 14831.0, "筆數": 147.0}], "store": [{"store_id": "S01", "店鋪": "Bear店", "交易筆數": 1044.0, "營收": 103015.0, "毛利": 25397.0, "毛利率": 24.65, "客單價": 98.67}, {"store_id": "S02", "店鋪": "Catty店", "交易筆數": 1062.0, "營收": 102571.0, "毛利": 25214.0, "毛利率": 24.58, "客單價": 96.58}, {"store_id": "S03", "店鋪": "Rabbit店", "交易筆數": 1053.0, "營收": 100113.0, "毛利": 24559.0, "毛利率": 24.53, "客單價": 95.07}, {"store_id": "S04", "店鋪": "Shiba店", "交易筆數": 1041.0, "營收": 98036.0, "毛利": 24339.0, "毛利率": 24.83, "客單價": 94.18}], "cat": [{"品類": "零食", "營收": 65387.0, "佔比_pct": 16.2, "銷量": 1869.0, "毛利率": 28.81}, {"品類": "饮料", "營收": 62694.0, "佔比_pct": 15.53, "銷量": 1825.0, "毛利率": 22.61}, {"品類": "生鲜", "營收": 51991.0, "佔比_pct": 12.88, "銷量": 1783.0, "毛利率": 20.81}, {"品類": "日用百货", "營收": 45534.0, "佔比_pct": 11.28, "銷量": 1597.0, "毛利率": 24.66}, {"品類": "酒水", "營收": 42384.0, "佔比_pct": 10.5, "銷量": 913.0, "毛利率": 26.17}, {"品類": "粮油调味", "營收": 39041.0, "佔比_pct": 9.67, "銷量": 1127.0, "毛利率": 26.83}, {"品類": "乳制品", "營收": 37282.0, "佔比_pct": 9.23, "銷量": 1390.0, "毛利率": 23.65}, {"品類": "冷冻食品", "營收": 31125.0, "佔比_pct": 7.71, "銷量": 889.0, "毛利率": 25.31}, {"品類": "熟食烘焙", "營收": 28298.0, "佔比_pct": 7.01, "銷量": 1138.0, "毛利率": 21.87}], "mem": [{"客群": "非會員", "筆數": 3144.0, "營收": 305924.0, "客單價": 97.3, "折扣率_pct": 2.66}, {"客群": "會員", "筆數": 1056.0, "營收": 97811.0, "客單價": 92.62, "折扣率_pct": 2.47}], "pay": [{"支付方式": "微信", "筆數": 876.0, "營收": 83661.0}, {"支付方式": "银行卡", "筆數": 849.0, "營收": 81597.0}, {"支付方式": "现金", "筆數": 823.0, "營收": 80828.0}, {"支付方式": "会员储值", "筆數": 819.0, "營收": 79510.0}, {"支付方式": "支付宝", "筆數": 833.0, "營收": 78140.0}], "hr": [{"時段": 7.0, "筆數": 266.0, "營收": 24796.0}, {"時段": 8.0, "筆數": 256.0, "營收": 26009.0}, {"時段": 9.0, "筆數": 264.0, "營收": 25202.0}, {"時段": 10.0, "筆數": 254.0, "營收": 25074.0}, {"時段": 11.0, "筆數": 276.0, "營收": 28951.0}, {"時段": 12.0, "筆數": 266.0, "營收": 26505.0}, {"時段": 13.0, "筆數": 239.0, "營收": 22813.0}, {"時段": 14.0, "筆數": 270.0, "營收": 26658.0}, {"時段": 15.0, "筆數": 261.0, "營收": 24436.0}, {"時段": 16.0, "筆數": 264.0, "營收": 26535.0}, {"時段": 17.0, "筆數": 279.0, "營收": 25045.0}, {"時段": 18.0, "筆數": 275.0, "營收": 24837.0}, {"時段": 19.0, "筆數": 275.0, "營收": 24577.0}, {"時段": 20.0, "筆數": 267.0, "營收": 24954.0}, {"時段": 21.0, "筆數": 227.0, "營收": 21899.0}, {"時段": 22.0, "筆數": 261.0, "營收": 25445.0}], "top": [{"商品": "比比赞面包", "品類": "零食", "店鋪": "Catty店", "銷量": 66.0, "營收": 4258.0, "毛利": 1380.0}, {"商品": "冻青豆玉米", "品類": "冷冻食品", "店鋪": "Rabbit店", "銷量": 69.0, "營收": 4046.0, "毛利": 1051.0}, {"商品": "高露洁牙膏", "品類": "日用百货", "店鋪": "Catty店", "銷量": 73.0, "營收": 3882.0, "毛利": 1240.0}, {"商品": "江小白", "品類": "酒水", "店鋪": "Catty店", "銷量": 69.0, "營收": 3329.0, "毛利": 735.0}, {"商品": "农夫山泉550ml", "品類": "饮料", "店鋪": "Bear店", "銷量": 57.0, "營收": 3192.0, "毛利": 889.0}, {"商品": "伊利纯牛奶250ml", "品類": "乳制品", "店鋪": "Bear店", "銷量": 68.0, "營收": 3166.0, "毛利": 528.0}, {"商品": "比比赞面包", "品類": "零食", "店鋪": "Bear店", "銷量": 49.0, "營收": 3159.0, "毛利": 1023.0}, {"商品": "农夫山泉550ml", "品類": "饮料", "店鋪": "Rabbit店", "銷量": 52.0, "營收": 2964.0, "毛利": 863.0}, {"商品": "牛栏山二锅头", "品類": "酒水", "店鋪": "Catty店", "銷量": 49.0, "營收": 2861.0, "毛利": 705.0}, {"商品": "思念汤圆", "品類": "冷冻食品", "店鋪": "Rabbit店", "銷量": 52.0, "營收": 2833.0, "毛利": 914.0}, {"商品": "乐事薯片原味", "品類": "零食", "店鋪": "Catty店", "銷量": 47.0, "營收": 2730.0, "毛利": 690.0}, {"商品": "青岛啤酒500ml", "品類": "酒水", "店鋪": "Shiba店", "銷量": 47.0, "營收": 2706.0, "毛利": 864.0}, {"商品": "维他柠檬茶", "品類": "饮料", "店鋪": "Rabbit店", "銷量": 51.0, "營收": 2682.0, "毛利": 571.0}, {"商品": "东方树叶乌龙茶", "品類": "饮料", "店鋪": "Catty店", "銷量": 52.0, "營收": 2570.0, "毛利": 646.0}, {"商品": "食用盐500g", "品類": "粮油调味", "店鋪": "Bear店", "銷量": 48.0, "營收": 2562.0, "毛利": 676.0}, {"商品": "安慕希酸奶", "品類": "乳制品", "店鋪": "Rabbit店", "銷量": 58.0, "營收": 2537.0, "毛利": 536.0}, {"商品": "乐事薯片原味", "品類": "零食", "店鋪": "Bear店", "銷量": 42.0, "營收": 2491.0, "毛利": 668.0}, {"商品": "乐事薯片原味", "品類": "零食", "店鋪": "Rabbit店", "銷量": 42.0, "營收": 2485.0, "毛利": 663.0}, {"商品": "农夫山泉550ml", "品類": "饮料", "店鋪": "Catty店", "銷量": 44.0, "營收": 2468.0, "毛利": 691.0}, {"商品": "鲈鱼", "品類": "生鲜", "店鋪": "Shiba店", "銷量": 67.0, "營收": 2463.0, "毛利": 594.0}], "low": [{"店鋪": "Rabbit店", "商品": "食用盐500g", "品類": "粮油调味", "庫存": 0.0, "安全庫存": 24.0, "缺口": 24.0, "庫存成本": 0.0}, {"店鋪": "Shiba店", "商品": "好丽友巧克力派", "品類": "零食", "庫存": 2.0, "安全庫存": 26.0, "缺口": 24.0, "庫存成本": 16.0}, {"店鋪": "Rabbit店", "商品": "茶叶蛋", "品類": "熟食烘焙", "庫存": 4.0, "安全庫存": 28.0, "缺口": 24.0, "庫存成本": 12.0}, {"店鋪": "Bear店", "商品": "香蕉", "品類": "生鲜", "庫存": 4.0, "安全庫存": 25.0, "缺口": 21.0, "庫存成本": 34.0}, {"店鋪": "Bear店", "商品": "蒙牛特仑苏", "品類": "乳制品", "庫存": 2.0, "安全庫存": 22.0, "缺口": 20.0, "庫存成本": 42.0}, {"店鋪": "Shiba店", "商品": "农夫山泉550ml", "品類": "饮料", "庫存": 3.0, "安全庫存": 22.0, "缺口": 19.0, "庫存成本": 121.0}, {"店鋪": "Shiba店", "商品": "海天生抽", "品類": "粮油调味", "庫存": 4.0, "安全庫存": 22.0, "缺口": 18.0, "庫存成本": 92.0}, {"店鋪": "Rabbit店", "商品": "清风抽纸3层", "品類": "日用百货", "庫存": 2.0, "安全庫存": 19.0, "缺口": 17.0, "庫存成本": 61.0}, {"店鋪": "Rabbit店", "商品": "光明鲜牛奶", "品類": "乳制品", "庫存": 11.0, "安全庫存": 27.0, "缺口": 16.0, "庫存成本": 75.0}, {"店鋪": "Bear店", "商品": "三明治", "品類": "熟食烘焙", "庫存": 3.0, "安全庫存": 19.0, "缺口": 16.0, "庫存成本": 82.0}, {"店鋪": "Shiba店", "商品": "五花肉", "品類": "生鲜", "庫存": 14.0, "安全庫存": 29.0, "缺口": 15.0, "庫存成本": 210.0}, {"店鋪": "Catty店", "商品": "蒙牛特仑苏", "品類": "乳制品", "庫存": 14.0, "安全庫存": 29.0, "缺口": 15.0, "庫存成本": 295.0}, {"店鋪": "Shiba店", "商品": "黄瓜", "品類": "生鲜", "庫存": 1.0, "安全庫存": 16.0, "缺口": 15.0, "庫存成本": 31.0}, {"店鋪": "Bear店", "商品": "安慕希酸奶", "品類": "乳制品", "庫存": 12.0, "安全庫存": 26.0, "缺口": 14.0, "庫存成本": 414.0}, {"店鋪": "Shiba店", "商品": "鲜肉包子", "品類": "熟食烘焙", "庫存": 13.0, "安全庫存": 26.0, "缺口": 13.0, "庫存成本": 51.0}, {"店鋪": "Shiba店", "商品": "面包吐司", "品類": "熟食烘焙", "庫存": 14.0, "安全庫存": 27.0, "缺口": 13.0, "庫存成本": 167.0}, {"店鋪": "Catty店", "商品": "舒肤佳香皂", "品類": "日用百货", "庫存": 8.0, "安全庫存": 21.0, "缺口": 13.0, "庫存成本": 74.0}, {"店鋪": "Shiba店", "商品": "洽洽小黄袋", "品類": "零食", "庫存": 6.0, "安全庫存": 18.0, "缺口": 12.0, "庫存成本": 196.0}, {"店鋪": "Rabbit店", "商品": "福临门大米5kg", "品類": "粮油调味", "庫存": 3.0, "安全庫存": 15.0, "缺口": 12.0, "庫存成本": 67.0}, {"店鋪": "Bear店", "商品": "白糖1kg", "品類": "粮油调味", "庫存": 10.0, "安全庫存": 22.0, "缺口": 12.0, "庫存成本": 296.0}, {"店鋪": "Bear店", "商品": "奶酪棒", "品類": "乳制品", "庫存": 1.0, "安全庫存": 13.0, "缺口": 12.0, "庫存成本": 19.0}, {"店鋪": "Shiba店", "商品": "土豆", "品類": "生鲜", "庫存": 0.0, "安全庫存": 11.0, "缺口": 11.0, "庫存成本": 0.0}, {"店鋪": "Shiba店", "商品": "湾仔码头水饺", "品類": "冷冻食品", "庫存": 8.0, "安全庫存": 19.0, "缺口": 11.0, "庫存成本": 67.0}, {"店鋪": "Shiba店", "商品": "维达卷纸", "品類": "日用百货", "庫存": 0.0, "安全庫存": 11.0, "缺口": 11.0, "庫存成本": 0.0}, {"店鋪": "Bear店", "商品": "旺仔牛奶", "品類": "乳制品", "庫存": 7.0, "安全庫存": 17.0, "缺口": 10.0, "庫存成本": 138.0}, {"店鋪": "Rabbit店", "商品": "五花肉", "品類": "生鲜", "庫存": 21.0, "安全庫存": 30.0, "缺口": 9.0, "庫存成本": 315.0}, {"店鋪": "Rabbit店", "商品": "东方树叶乌龙茶", "品類": "饮料", "庫存": 6.0, "安全庫存": 14.0, "缺口": 8.0, "庫存成本": 222.0}, {"店鋪": "Bear店", "商品": "农夫山泉550ml", "品類": "饮料", "庫存": 15.0, "安全庫存": 22.0, "缺口": 7.0, "庫存成本": 606.0}, {"店鋪": "Catty店", "商品": "电池5号", "品類": "日用百货", "庫存": 3.0, "安全庫存": 8.0, "缺口": 5.0, "庫存成本": 86.0}, {"店鋪": "Shiba店", "商品": "便当盒饭", "品類": "熟食烘焙", "庫存": 4.0, "安全庫存": 9.0, "缺口": 5.0, "庫存成本": 89.0}, {"店鋪": "Bear店", "商品": "长城干红", "品類": "酒水", "庫存": 17.0, "安全庫存": 22.0, "缺口": 5.0, "庫存成本": 695.0}, {"店鋪": "Bear店", "商品": "依云矿泉水", "品類": "饮料", "庫存": 25.0, "安全庫存": 30.0, "缺口": 5.0, "庫存成本": 600.0}, {"店鋪": "Bear店", "商品": "海天生抽", "品類": "粮油调味", "庫存": 1.0, "安全庫存": 6.0, "缺口": 5.0, "庫存成本": 23.0}, {"店鋪": "Bear店", "商品": "湾仔码头水饺", "品類": "冷冻食品", "庫存": 19.0, "安全庫存": 24.0, "缺口": 5.0, "庫存成本": 160.0}, {"店鋪": "Catty店", "商品": "本地西红柿", "品類": "生鲜", "庫存": 2.0, "安全庫存": 6.0, "缺口": 4.0, "庫存成本": 71.0}, {"店鋪": "Rabbit店", "商品": "王老吉罐装", "品類": "饮料", "庫存": 21.0, "安全庫存": 25.0, "缺口": 4.0, "庫存成本": 395.0}, {"店鋪": "Bear店", "商品": "德芙丝滑巧克力", "品類": "零食", "庫存": 18.0, "安全庫存": 22.0, "缺口": 4.0, "庫存成本": 275.0}, {"店鋪": "Catty店", "商品": "乐事薯片原味", "品類": "零食", "庫存": 12.0, "安全庫存": 16.0, "缺口": 4.0, "庫存成本": 521.0}, {"店鋪": "Catty店", "商品": "元气森林气泡水", "品類": "饮料", "庫存": 23.0, "安全庫存": 27.0, "缺口": 4.0, "庫存成本": 476.0}, {"店鋪": "Rabbit店", "商品": "奶酪棒", "品類": "乳制品", "庫存": 14.0, "安全庫存": 17.0, "缺口": 3.0, "庫存成本": 272.0}, {"店鋪": "Catty店", "商品": "雀巢冰淇淋", "品類": "冷冻食品", "庫存": 10.0, "安全庫存": 13.0, "缺口": 3.0, "庫存成本": 90.0}, {"店鋪": "Catty店", "商品": "农夫山泉550ml", "品類": "饮料", "庫存": 16.0, "安全庫存": 19.0, "缺口": 3.0, "庫存成本": 646.0}, {"店鋪": "Catty店", "商品": "蓝月亮洗衣液", "品類": "日用百货", "庫存": 4.0, "安全庫存": 7.0, "缺口": 3.0, "庫存成本": 36.0}, {"店鋪": "Shiba店", "商品": "陈醋", "品類": "粮油调味", "庫存": 26.0, "安全庫存": 27.0, "缺口": 1.0, "庫存成本": 260.0}, {"店鋪": "Catty店", "商品": "旺旺雪饼", "品類": "零食", "庫存": 20.0, "安全庫存": 21.0, "缺口": 1.0, "庫存成本": 438.0}, {"店鋪": "Rabbit店", "商品": "奥利奥原味", "品類": "零食", "庫存": 4.0, "安全庫存": 5.0, "缺口": 1.0, "庫存成本": 31.0}], "exp": [{"店鋪": "Rabbit店", "租金": 31670.0, "工資": "", "水電": "", "報損": "", "物流": 1221.0, "維護": "", "促銷": "", "耗材": "", "費用合計": 65501.0, "營收": 100113.0, "營收減費用": 34612.0}, {"店鋪": "Shiba店", "租金": 28055.0, "工資": "", "水電": "", "報損": "", "物流": 3917.0, "維護": "", "促銷": "", "耗材": "", "費用合計": 57137.0, "營收": 98036.0, "營收減費用": 40899.0}, {"店鋪": "Bear店", "租金": 26903.0, "工資": "", "水電": "", "報損": "", "物流": 1922.0, "維護": "", "促銷": "", "耗材": "", "費用合計": 55753.0, "營收": 103015.0, "營收減費用": 47262.0}, {"店鋪": "Catty店", "租金": 22730.0, "工資": "", "水電": "", "報損": "", "物流": 2878.0, "維護": "", "促銷": "", "耗材": "", "費用合計": 53587.0, "營收": 102571.0, "營收減費用": 48984.0}]};
+const $=id=>document.getElementById(id);
+const fmt=n=>n.toLocaleString('zh-HK',{maximumFractionDigits:0});
+const fmt2=n=>n.toLocaleString('zh-HK',{minimumFractionDigits:1,maximumFractionDigits:1});
+const STORE={S01:'Bear店',S02:'Catty店',S03:'Rabbit店',S04:'Shiba店'};
+let DATA=null, curStore='ALL', curDate=null;
+
+DATA=EMB; render();
+
+function rowFilter(r){if(curStore==='ALL')return true;const v=(r.店鋪||r.store_name||'');return v===curStore||v===STORE[curStore];}
+function sum(rows,f){return rows.reduce((a,r)=>a+(+f(r)||0),0);}
+function kpiCard(l,v,d,cls){return `<div class="kpi ${cls}"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;}
+
+function render(){
+  const d=DATA;
+  const salesAll=[...Array.from({length:4200},()=>null)].length;
+  const byStore=d.store.filter(rowFilter);
+  const rev=sum(byStore,r=>r.營收), gp=sum(byStore,r=>r.毛利), qty=sum(d.daily.filter(rowFilter?()=>true:()=>true),r=>0)||0;
+  const txn=curStore==='ALL'?4200:sum(byStore,r=>r.交易筆數);
+  const grandRev=403735.5, grandTxn=4200, grandQty=12531;
+  const aov=rev/txn;
+  const grossMargin=gp/rev*100;
+  const costEst=rev-gp;
+  // 低庫存（店篩選）
+  const low=d.low.filter(r=>curStore==='ALL'?true:r.店鋪===curStore).slice(0,46);
+  const lowCnt=low.length, lowCost=sum(low,r=>r.庫存成本||0);
+  const expF=d.exp.filter(rowFilter);
+  const expSum=sum(expF,r=>r.費用合計);
+  const netRev=rev-expSum;
+
+  $('kpis').innerHTML=
+    kpiCard('總營收 (元)',fmt(rev),`客單價 ${fmt2(aov)}｜${txn.toLocaleString()} 筆`)+(curStore!=='ALL'?' 店級':'')+'')+
+    kpiCard('毛利率','%'+grossMargin.toFixed(1),`毛利 ${fmt(gp)}｜成本 ${fmt(costEst)}`,'g')+
+    kpiCard('營收減費用','%'+(netRev/rev*100).toFixed(1)+' 留存',`費用 ${fmt(expSum)}｜淨 ${fmt(netRev)}`,netRev>0?'g':'b')+
+    kpiCard('低庫存預警',lowCnt+' 品項',`佔壓成本 ${fmt(lowCost)}｜全店46項`,'w');
+
+  // 每日
+  const days=curDate?d.daily.filter(r=>r.d===curDate):d.daily;
+  const maxD=Math.max(...days.map(r=>r.營收));
+  $('daily').innerHTML=days.map(r=>`<div class="bar-row" style="cursor:pointer" onclick="pickDate('${r.d}')"><div class="nm">${String(r.d).slice(8)}</div><div class="bar-wrap"><div class="bar" style="width:${r.營收/maxD*100}%"></div></div><div class="vl">${fmt(r.營收)}<br><small style="opacity:.6">${r.筆數}筆</small></div></div>`).join('');
+
+  // 品類
+  const cm=curStore==='ALL'?d.cat:d.top.filter(r=>r.店鋪===curStore||r.店鋪===STORE[curStore]).reduce((a,r)=>{const k=r.品類;if(!a[k])a[k]={品類:k,營收:0,銷量:0,毛利率:0,_c:0};a[k].營收+=r.營收;a[k].銷量+=r.銷量;a[k]._c++;return a;},{}) ;
+  const catArr=Array.isArray(cm)?cm:Object.values(cm).map(o=>({品類:o.品類,營收:o.營收,銷量:o.銷量,毛利率:o.毛利率}));
+  catArr.sort((a,b)=>b.營收-a.營收);
+  const maxC=catArr[0]?catArr[0].營收:1;
+  $('catBars').innerHTML=catArr.map(r=>`<div class="bar-row"><div class="nm">${r.品類}</div><div class="bar-wrap"><div class="bar" style="width:${r.營收/maxC*100}%;background:linear-gradient(90deg,${r.毛利率>26?'#37d39b':r.毛利率>23?'#4f9dff':'#ffb454'},transparent)"></div></div><div class="vl">${fmt(r.營收)}<br><small>毛利${r.毛利率}%</small></div></div>`).join('');
+  $('catLegend').innerHTML=catArr.map((r,i)=>`<div><span class="dot" style="background:hsl(${i*47},70%,55%)"></span>${r.品類} ${r.營收/rev*100|0}%</div>`).join('');
+
+  // 門店
+  const sArr=d.store.slice().sort((a,b)=>b.營收-a.營收);
+  const maxS=sArr[0].營收;
+  $('storeBars').innerHTML=sArr.map(r=>`<div class="bar-row" style="cursor:pointer" onclick="pickStore('${r.店鋪}')"><div class="nm">${r.店鋪}</div><div class="bar-wrap"><div class="bar" style="width:${r.營收/maxS*100}%;background:linear-gradient(90deg,#4f9dff,#8a7bff)"></div></div><div class="vl">${fmt(r.營收)}<br><small>毛利${r.毛利率}%｜客單${r.客單價}</small></div></div>`).join('');
+
+  // 時段熱力
+  const hr=curDate?d.hr:null;
+  const hm=Math.max(...(hr||d.hr).map(r=>r.營收));
+  $('heat').innerHTML=(hr||d.hr).map(r=>`<div class="c" style="background:rgba(79,157,255,${(r.營收/hm*0.85)+0.08})" title="${r.時段}時 ${fmt(r.營收)}元/${r.筆數}筆"><div>${r.時段}</div><small>${fmt(r.營收)}</small></div>`).join('');
+
+  // 支付 + 會員
+  const pm=rev/grandRev;
+  $('pay').innerHTML='<table><thead><tr><th>支付方式</th><th>營收</th><th>佔比</th></tr></thead><tbody>'+d.pay.map(r=>`<tr><td>${r.支付方式}</td><td>${fmt(r.營收*pm)}</td><td>${(r.營收/grandRev*100).toFixed(1)}%</td></tr>`).join('')+'</tbody></table>';
+  $('mem').innerHTML='<table><thead><tr><th>客群</th><th>筆數</th><th>營收</th><th>客單價</th><th>折扣率</th></tr></thead><tbody>'+d.mem.map(r=>`<tr${r.客群==='會員'?' class="alert"':''}><td>${r.客群}</td><td>${r.筆數}</td><td>${fmt(r.營收*(curStore==='ALL'?1:rev/grandRev))}</td><td>${r.客單價}</td><td>${r.折扣率_pct}%</td></tr>`).join('')+'</tbody></table>';
+
+  // TOP
+  let top=d.top.filter(r=>curStore==='ALL'?true:(r.店鋪===curStore||r.店鋪===STORE[curStore]));
+  const mk=document.getElementById('metric').value;
+  top.sort((a,b)=>mk==='gp'?b.毛利率-a.毛利率:mk==='qty'?b.銷量-a.銷量:b.營收-a.營收);
+  $('topN').textContent='TOP '+Math.min(10,top.length);
+  $('topTable').innerHTML='<table><thead><tr><th>商品</th><th>店</th><th>銷量</th><th>營收</th><th>毛利</th></tr></thead><tbody>'+top.slice(0,10).map(r=>`<tr><td>${r.商品}</td><td>${r.店鋪}</td><td>${r.銷量}</td><td>${fmt(r.營收)}</td><td>${fmt(r.毛利)}</td></tr>`).join('')+'</tbody></table>';
+
+  // 低庫存
+  const lowSort=low.slice().sort((a,b)=>b.缺口-a.缺口);
+  $('lowTable').innerHTML='<table><thead><tr><th>店</th><th>商品</th><th>庫存</th><th>安全</th><th>缺口</th><th>成本</th></tr></thead><tbody>'+lowSort.map(r=>`<tr class="alert"><td>${r.店鋪}</td><td>${r.商品}</td><td>${r.庫存}</td><td>${r.安全庫存}</td><td>+${r.缺口}</td><td>${fmt(r.庫存成本)}</td></tr>`).join('')+'</tbody></table>'+(low.length?'':`<div style="padding:14px;color:var(--good)">✔ 無低庫存品項</div>`);
+
+  // 費用
+  const expCols=['租金','工資','水電','報損','物流','維護','促銷','耗材'];
+  $('expTable').innerHTML='<table><thead><tr><th>店</th>'+expCols.map(c=>`<th>${c}</th>`).join('')+'<th>費用合計</th><th>營收</th><th>營收-費用</th></tr></thead><tbody>'+expF.map(r=>{const neg=r.營收減費用<0;return `<tr${neg?' class="alert"':''}><td>${r.店鋪}</td>`+expCols.map(c=>`<td>${fmt(r[c]||0)}</td>`).join('')+`<td><b>${fmt(r.費用合計)}</b></td><td>${fmt(r.營收)}</td><td style="color:${neg?'var(--bad)':'var(--good)'}" >${fmt(r.營收減費用)}</td></tr>`;}).join('')+'</tbody></table>';
+
+  $('selInfo').textContent = curStore!=='ALL' ? `目前篩選：${curStore}`+(curDate?` ｜ ${curDate}`:'') : (curDate?`目前篩選：${curDate}`:'全店 · 30天總覽');
+}
+function pickStore(s){curStore=(curStore===s)?'ALL':s;curDate=null;render();window.scrollTo({top:0,behavior:'smooth'});}
+function pickDate(d){curDate=(curDate===d)?null:d;render();}
+function resetAll(){curStore='ALL';curDate=null;$('store').value='ALL';render();}
+$('store').onchange=e=>{curStore=e.target.value;curDate=null;render();};
+$('metric').onchange=render;
+</script>
+</body>
+</html>
